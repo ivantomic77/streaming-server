@@ -56,6 +56,7 @@ int handle_get_request(char *buffer, int client_fd) {
         if (strcmp(header, "\r") == 0 || strcmp(header, "") == 0) {
             break;
         }
+        // TODO: Handle extraction of video specific headers
         printf("%s\n", header);
     }
 
