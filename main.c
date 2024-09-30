@@ -32,35 +32,41 @@ void handle_err_500(int client_fd) {
 
 
 int handle_get_request(char *buffer, int client_fd) {
-    char* f = buffer + 4;
-    char* end_of_path = strchr(f, ' ');
-    if (end_of_path != NULL) {
-        *end_of_path = 0;
-    } else {
-        close(client_fd);
-        return 1;
+    char *first_line_end = strstr(buffer, "\n");
+    if (first_line_end != NULL) {
+        buffer = first_line_end + 1;
     }
 
-    char filepath[256] = "./";
-    strcat(filepath, f);
-    int file_fd = open(filepath, O_RDONLY);
-
-    if (file_fd < 0) {
-        handle_err_404(client_fd);
-    } else {
+    if(sizeof(buffer) > 8000) {
         char response_header[256];
         sprintf(response_header, 
-                "HTTP/1.1 200 OK\r\n"
+                "HTTP/1.1 413 Entity Too Large\r\n"
                 "Content-Type: text/html\r\n"
                 "\r\n");
         send(client_fd, response_header, strlen(response_header), 0);
 
-        off_t offset = 0;
-        struct stat stat_buf;
-        fstat(file_fd, &stat_buf);
-        sendfile(client_fd, file_fd, &offset, stat_buf.st_size);
-        close(file_fd);
+        close(client_fd);
+        return 1;
     }
+
+    char* header;
+    char* rest = buffer;
+
+    while ((header = strtok_r(rest, "\n", &rest))) {
+        if (strcmp(header, "\r") == 0 || strcmp(header, "") == 0) {
+            break;
+        }
+        printf("%s\n", header);
+    }
+
+    char response_header[256];
+    sprintf(response_header, 
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/html\r\n"
+            "\r\n");
+    send(client_fd, response_header, strlen(response_header), 0);
+
+    close(client_fd);
     return 0;
 }
 
@@ -103,7 +109,6 @@ int main() {
 
         char buffer[1024] = {0};
         recv(client_fd, buffer, 1024, 0);
-        printf("Request: %s\n", buffer);
 
         if (strncmp(buffer, "GET ", 4) == 0) {
             int res = handle_get_request(buffer, client_fd);
